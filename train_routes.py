@@ -82,57 +82,39 @@ def build_subgraph(component_nodes, routes):
 def find_eulerian_path_or_pairs(graph, component_routes):
     used = set()
     paths = []
-
+    
     def dfs_path(start):
-        stack = [(start, None)]
+        stack = [start]
         path = []
-        local_used = set()
-
         while stack:
-            node, incoming = stack.pop()
-            while graph[node]:
+            node = stack[-1]
+            if graph[node]:
                 neighbor, route = graph[node].pop()
-                if (route.route_id in used or
-                    (node, neighbor, route.route_id) in local_used or
-                    (neighbor, node, route.route_id) in local_used):
+                if route.route_id in used:
                     continue
-                local_used.add((node, neighbor, route.route_id))
-                stack.append((node, incoming))
-                node = neighbor
-                incoming = route
-            if incoming:
-                path.append(incoming)
+                used.add(route.route_id)
+                stack.append(neighbor)
+                path.append(route)
+            else:
+                stack.pop()
         return path
 
-    # Create a copy of graph to avoid modifying the original during traversal
-    graph_copy = defaultdict(list)
-    for node in graph:
-        graph_copy[node] = list(graph[node])
-
     odd_vertices = find_odd_degree_vertices(graph)
-    if not odd_vertices:
-        start_nodes = [component_routes[0].start]
-    else:
-        start_nodes = odd_vertices
-
-    for start in start_nodes:
+    while len(odd_vertices) > 1:
+        start = odd_vertices.pop()
+        end = odd_vertices.pop()
         path = dfs_path(start)
         if path:
-            for route in path:
-                used.add(route.route_id)
             paths.append(path)
-
-    # Catch remaining unused routes if they form disconnected paths
+    
     remaining_routes = [r for r in component_routes if r.route_id not in used]
     while remaining_routes:
-        route = remaining_routes[0]
-        path = dfs_path(route.start)
+        start = remaining_routes[0].start
+        path = dfs_path(start)
         if path:
-            for r in path:
-                used.add(r.route_id)
             paths.append(path)
         remaining_routes = [r for r in component_routes if r.route_id not in used]
-
+    
     return paths
 
 def format_journey(journey_num, path):
@@ -160,16 +142,15 @@ def generate_journeys(route_lines):
     for route in routes:
         route_graph[route.start].add(route.end)
         route_graph[route.end].add(route.start)
-        
+    
     components = find_connected_components(route_graph)
     all_journeys = []
 
-    for i, component_nodes in enumerate(components, start=1):
+    for component_nodes in components:
         component_routes = extract_component_routes(component_nodes, graph)
         subgraph = build_subgraph(component_nodes, component_routes)
         paths = find_eulerian_path_or_pairs(subgraph, component_routes)
-        for path in paths:
-            all_journeys.append(path)
+        all_journeys.extend(paths)
 
     total_time = 0
     for idx, journey in enumerate(all_journeys, start=1):
@@ -178,6 +159,7 @@ def generate_journeys(route_lines):
         total_time += sum(route.duration for route in journey)
 
     print(f"Total Time Across All Journeys: {total_time} minutes")
+    print(f"Number of journeys created: {len(all_journeys)}")
 
 if __name__ == "__main__":
     filename = input("Enter the name of the route file to load (e.g., my_routes.txt): ").strip()
