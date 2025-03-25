@@ -1,0 +1,7 @@
+Stepford Central <> Benton (R075) 6 min, 2 stops | Benton Express (fast)
+Stepford Central <> Leighton City (R076) 13 min, 5 stops | Leighton Express
+Stepford Central <> Llyn-by-the-Sea (R077) 23 min, 9 stops | Llyn via Benton
+Stepford Central <> Llyn-by-the-Sea (R078) 22 min, 6 stops | Llyn via Benton (fast)
+Stepford Central <> Benton (R079) 6 min, 3 stops | Benton Express
+Stepford Central <> Llyn-by-the-Sea (R080) 20 min, 8 stops | Llyn via Morganstown (fast)
+Stepford Central <> Westwyvern (R082) 21 min, 7 stops | Westwyvern Express
