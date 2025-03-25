@@ -1,162 +1,189 @@
-import os
 import re
 from collections import defaultdict, deque
 
 class Route:
-    def __init__(self, start, end, code, duration, stops, tag=None):
+    def __init__(self, route_id, start, end, duration, stops, description):
+        self.route_id = route_id
         self.start = start
         self.end = end
-        self.code = code
         self.duration = duration
         self.stops = stops
-        self.tag = tag
+        self.description = description.strip()
 
     def __repr__(self):
-        return f"{self.code}: {self.start} <> {self.end} ({self.duration} minutes, {self.stops} stops{f' | {self.tag}' if self.tag else ''})"
+        return f"{self.route_id}: {self.start} <> {self.end} ({self.duration} minutes, {self.stops} stops{' | ' + self.description if self.description else ''})"
 
-    def other_end(self, station):
-        return self.end if station == self.start else self.start
+    def endpoints(self):
+        return self.start, self.end
 
-def parse_route_line(line):
-    match = re.match(r"(.+?) <> (.+?) \((R\d{3})\) (\d+) min, (\d+) stops(?: \| (.+))?", line.strip())
-    if match:
-        start, end, code, duration, stops, tag = match.groups()
-        return Route(start.strip(), end.strip(), code.strip(), int(duration), int(stops), tag.strip() if tag else None)
-    return None
-
-def load_routes_from_file():
-    txt_files = [f for f in os.listdir('.') if f.endswith('.txt')]
-    if txt_files:
-        print("Available route files:")
-        for idx, fname in enumerate(txt_files, 1):
-            print(f"{idx}. {fname}")
-        choice = input("Enter the number of the file to use or type the filename directly: ").strip()
-        filename = txt_files[int(choice)-1] if choice.isdigit() and 0 < int(choice) <= len(txt_files) else choice
-    else:
-        filename = input("No .txt files found. Please enter the full path to a routes file: ").strip()
-
-    try:
-        with open(filename, 'r') as f:
-            return [parse_route_line(line) for line in f if line.strip()]
-    except FileNotFoundError:
-        print("File not found. Exiting.")
-        exit()
+def parse_routes(route_lines):
+    routes = []
+    pattern = re.compile(r"(.+?) <> (.+?) \((R\d+)\) (\d+) min, (\d+) stops(?: \| (.+))?")
+    for line in route_lines:
+        match = pattern.match(line)
+        if match:
+            start, end, route_id, duration, stops, description = match.groups()
+            route = Route(route_id, start.strip(), end.strip(), int(duration), int(stops), description or "")
+            routes.append(route)
+    return routes
 
 def build_graph(routes):
     graph = defaultdict(list)
-    edge_map = {}
     for route in routes:
-        graph[route.start].append((route.end, route.code))
-        graph[route.end].append((route.start, route.code))
-        edge_map[(route.start, route.end)] = route
-        edge_map[(route.end, route.start)] = route
-    return graph, edge_map
+        graph[route.start].append((route.end, route))
+        graph[route.end].append((route.start, route))
+    return graph
 
-def find_components(graph):
+def find_odd_degree_vertices(graph):
+    return [node for node in graph if len(graph[node]) % 2 == 1]
+
+def find_connected_components(graph):
     visited = set()
     components = []
 
+    def dfs(node, component):
+        stack = [node]
+        while stack:
+            current = stack.pop()
+            if current not in visited:
+                visited.add(current)
+                component.add(current)
+                for neighbor in graph[current]:
+                    if neighbor not in visited:
+                        stack.append(neighbor)
+
     for node in graph:
         if node not in visited:
-            queue = deque([node])
             component = set()
-            while queue:
-                current = queue.popleft()
-                if current not in visited:
-                    visited.add(current)
-                    component.add(current)
-                    queue.extend(neigh for neigh, _ in graph[current])
+            dfs(node, component)
             components.append(component)
+
     return components
 
-def find_odd_vertices(graph, component):
-    return [v for v in component if len(graph[v]) % 2 == 1]
+def extract_component_routes(component_nodes, graph):
+    seen = set()
+    component_routes = []
+    for node in component_nodes:
+        for neighbor, route in graph[node]:
+            route_key = tuple(sorted([route.start, route.end, route.route_id]))
+            if route_key not in seen:
+                seen.add(route_key)
+                component_routes.append(route)
+    return component_routes
 
-def find_journeys(component, graph, edge_map):
-    used_edges = set()
-    journeys = []
+def build_subgraph(component_nodes, routes):
+    subgraph = defaultdict(list)
+    for route in routes:
+        if route.start in component_nodes and route.end in component_nodes:
+            subgraph[route.start].append((route.end, route))
+            subgraph[route.end].append((route.start, route))
+    return subgraph
 
-    def dfs(u, journey):
-        for v, code in graph[u]:
-            edge = tuple(sorted((u, v)))
-            if edge not in used_edges:
-                used_edges.add(edge)
-                dfs(v, journey)
-                journey.append((u, v))
+def find_eulerian_path_or_pairs(graph, component_routes):
+    used = set()
+    paths = []
 
-    for start in component:
-        for v, _ in graph[start]:
-            edge = tuple(sorted((start, v)))
-            if edge not in used_edges:
-                path = []
-                dfs(start, path)
-                if path:
-                    path.reverse()
-                    journeys.append(path)
+    def dfs_path(start):
+        stack = [(start, None)]
+        path = []
+        local_used = set()
 
-    return journeys
+        while stack:
+            node, incoming = stack.pop()
+            while graph[node]:
+                neighbor, route = graph[node].pop()
+                if (route.route_id in used or
+                    (node, neighbor, route.route_id) in local_used or
+                    (neighbor, node, route.route_id) in local_used):
+                    continue
+                local_used.add((node, neighbor, route.route_id))
+                stack.append((node, incoming))
+                node = neighbor
+                incoming = route
+            if incoming:
+                path.append(incoming)
+        return path
 
-def display_journeys(journeys, edge_map):
+    # Create a copy of graph to avoid modifying the original during traversal
+    graph_copy = defaultdict(list)
+    for node in graph:
+        graph_copy[node] = list(graph[node])
+
+    odd_vertices = find_odd_degree_vertices(graph)
+    if not odd_vertices:
+        start_nodes = [component_routes[0].start]
+    else:
+        start_nodes = odd_vertices
+
+    for start in start_nodes:
+        path = dfs_path(start)
+        if path:
+            for route in path:
+                used.add(route.route_id)
+            paths.append(path)
+
+    # Catch remaining unused routes if they form disconnected paths
+    remaining_routes = [r for r in component_routes if r.route_id not in used]
+    while remaining_routes:
+        route = remaining_routes[0]
+        path = dfs_path(route.start)
+        if path:
+            for r in path:
+                used.add(r.route_id)
+            paths.append(path)
+        remaining_routes = [r for r in component_routes if r.route_id not in used]
+
+    return paths
+
+def format_journey(journey_num, path):
+    output = [f"Journey {journey_num}:", "Routes:"]
     total_time = 0
-    for i, journey in enumerate(journeys, 1):
-        print(f"\nJourney {i}:")
-        print("Routes:")
-        journey_time = 0
-        used = set()
-        for a, b in journey:
-            route = edge_map.get((a, b)) or edge_map.get((b, a))
-            if route and route.code not in used:
-                used.add(route.code)
-                tag = f" | {route.tag}" if route.tag else ""
-                print(f"• {route.code}: {route.start} <> {route.end} ({route.duration} minutes, {route.stops} stops{tag})")
-                journey_time += route.duration
+    for route in path:
+        desc = f" | {route.description}" if route.description else ""
+        output.append(f"• {route.route_id}: {route.start} <> {route.end} ({route.duration} minutes, {route.stops} stops{desc})")
+        total_time += route.duration
 
-        print("\nSuggested Sequence:")
-        if journey:
-            sequence = [journey[0][0]]
-            for a, b in journey:
-                if sequence[-1] == a:
-                    sequence.append(b)
-                else:
-                    sequence.append(a)
-            for i in range(len(sequence)-1):
-                route = edge_map.get((sequence[i], sequence[i+1])) or edge_map.get((sequence[i+1], sequence[i]))
-                tag = f" | {route.tag}" if route.tag else ""
-                print(f"– From {sequence[i]}, take {route.code} to {sequence[i+1]}{tag}.")
+    sequence = ["\nSuggested Sequence:"]
+    if path:
+        sequence.append(f"– From {path[0].start}, take {path[0].route_id} to {path[0].end}{f' | {path[0].description}' if path[0].description else ''}.")
+        for prev, curr in zip(path, path[1:]):
+            sequence.append(f"– From {curr.start}, take {curr.route_id} to {curr.end}{f' | {curr.description}' if curr.description else ''}.")
 
-        print(f"\nTotal Time: {journey_time} minutes")
-        total_time += journey_time
+    output.extend(sequence)
+    output.append(f"\nTotal Time: {total_time} minutes\n")
+    return "\n".join(output)
 
-    print(f"\nTotal Time Across All Journeys: {total_time} minutes")
-
-def main():
-    routes = load_routes_from_file()
-    graph, edge_map = build_graph(routes)
-    components = find_components(graph)
-
-    print(f"\nNumber of connected components: {len(components)}")
-    total_min_journeys = 0
+def generate_journeys(route_lines):
+    routes = parse_routes(route_lines)
+    graph = build_graph(routes)
+    route_graph = defaultdict(set)
+    for route in routes:
+        route_graph[route.start].add(route.end)
+        route_graph[route.end].add(route.start)
+        
+    components = find_connected_components(route_graph)
     all_journeys = []
 
-    for i, component in enumerate(components, 1):
-        odd_vertices = find_odd_vertices(graph, component)
-        print(f"\nAnalyzing Component {i}:")
-        if not odd_vertices:
-            print("This component has an Eulerian circuit. Minimum journeys: 1")
-            journeys = find_journeys(component, graph, edge_map)
-        else:
-            print("This component does not have an Eulerian path or circuit.")
-            print(f"Number of vertices with odd degree: {len(odd_vertices)}")
-            print(f"Minimum number of journeys needed for this component: {len(odd_vertices)//2}")
-            journeys = find_journeys(component, graph, edge_map)
-            print("The graph has vertices with odd degrees, indicating multiple journeys are needed.")
-            print(f"Odd-degree vertices: {odd_vertices}")
+    for i, component_nodes in enumerate(components, start=1):
+        component_routes = extract_component_routes(component_nodes, graph)
+        subgraph = build_subgraph(component_nodes, component_routes)
+        paths = find_eulerian_path_or_pairs(subgraph, component_routes)
+        for path in paths:
+            all_journeys.append(path)
 
-        total_min_journeys += max(1, len(odd_vertices) // 2)
-        all_journeys.extend(journeys)
+    total_time = 0
+    for idx, journey in enumerate(all_journeys, start=1):
+        output = format_journey(idx, journey)
+        print(output)
+        total_time += sum(route.duration for route in journey)
 
-    print(f"\nTotal minimum journeys needed: {total_min_journeys}")
-    display_journeys(all_journeys, edge_map)
+    print(f"Total Time Across All Journeys: {total_time} minutes")
 
 if __name__ == "__main__":
-    main()
+    filename = input("Enter the name of the route file to load (e.g., my_routes.txt): ").strip()
+    try:
+        with open(filename, encoding="utf-8") as f:
+            input_routes = [line.strip() for line in f if line.strip()]
+        generate_journeys(input_routes)
+    except FileNotFoundError:
+        print(f"Error: File '{filename}' not found. Please check the filename and try again.")
