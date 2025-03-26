@@ -1,5 +1,5 @@
-('C:\\Users\\paral\\Documents\\Codes that I actually wrote\\Python\\Train '
- 'Routes\\build\\train_routes\\PYZ-00.pyz',
+('C:\\Users\\Paraliyzed_evo\\Documents\\Codes that I actually '
+ 'wrote\\Python\\Train Routes\\build\\train_routes\\PYZ-00.pyz',
  [('PIL',
    'C:\\Users\\Paraliyzed_evo\\AppData\\Local\\Programs\\Python\\Python312\\Lib\\site-packages\\PIL\\__init__.py',
    'PYMODULE'),
