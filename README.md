@@ -7,6 +7,12 @@ Note: Also the code has around a 3-5% error rate, but it's not that significant.
 
 Download exe [here](https://github.com/ParaliyzedEvo/Train-Routes/releases/latest)
 
+## Format for connect routes
+<img alt="connect routes" src="https://i.imgur.com/UB9SHlo.png">
+
+## Format for express routes
+<img alt="express routes" src="https://i.imgur.com/F5mEqgT.png">
+
 ## Star History
 
 <a href="https://www.star-history.com/#ParaliyzedEvo/Train-Routes&Date">
