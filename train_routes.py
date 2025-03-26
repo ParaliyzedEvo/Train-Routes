@@ -1,60 +1,12 @@
 import re
 import networkx as nx
-from collections import deque
-
-def find_odd_degree_vertices(graph):
-    return [node for node, degree in graph.degree() if degree % 2 == 1]
-
-def find_eulerian_paths(graph):
-    odd_degree_vertices = find_odd_degree_vertices(graph)
-    print("Odd-degree vertices:", odd_degree_vertices)
-    journeys = []
-    used_edges = set()
-    used_routes = set()
-
-    # Pair up odd-degree vertices and build journeys
-    while len(odd_degree_vertices) >= 2:
-        start = odd_degree_vertices.pop()
-        end = odd_degree_vertices.pop()
-
-        subgraph = graph.copy()
-        for u, v in list(graph.edges()):
-            if all(route in used_routes for route in graph[u][v]['routes']):
-                subgraph.remove_edge(u, v)
-
-        try:
-            path = nx.shortest_path(subgraph, start, end)
-        except nx.NetworkXNoPath:
-            continue  # Skip if no path exists
-
-        journey = []
-        for i in range(len(path) - 1):
-            u, v = path[i], path[i + 1]
-            if not graph.has_edge(u, v):
-                continue
-            for route in graph[u][v]['routes']:
-                if route not in used_routes:
-                    journey.append((u, v, route))
-                    used_routes.add(route)
-                    break
-        if journey:
-            journeys.append(journey)
-
-    # Add any remaining unused routes as standalone journeys
-    for u, v in graph.edges():
-        for route in graph[u][v]['routes']:
-            if route not in used_routes:
-                journeys.append([(u, v, route)])
-                used_routes.add(route)
-
-    return journeys
 
 def load_routes_from_file(filename):
     routes = []
     route_descriptions = {}
     route_times = {}
 
-    pattern = r"(.+?)\s*<>\s*(.+?)\s*\((R\d+)\)\s*(\d+)\s*min.*\|\s*(.+)"  # Now captures minutes too
+    pattern = r"(.+?)\s*<>\s*(.+?)\s*\((R\d+)\)\s*(\d+)\s*min.*\|\s*(.+)"
 
     with open(filename, 'r', encoding="utf-8") as file:
         for line in file:
@@ -62,29 +14,71 @@ def load_routes_from_file(filename):
             if match:
                 start, end, route, minutes, description = match.groups()
                 routes.append((start.strip(), end.strip(), route.strip()))
+                routes.append((end.strip(), start.strip(), route.strip()))  # Add reverse route
 
                 route_descriptions[route.strip()] = description.strip()
-                route_times[route.strip()] = int(minutes)  # Save the duration
+                route_times[route.strip()] = int(minutes)
 
     return routes, route_descriptions, route_times
-    
+
+def build_journeys(graph, routes):
+    all_used_routes = set()
+    journeys = []
+
+    # Create a mapping of reverse routes
+    reverse_lookup = {}
+    for u1, v1, r1 in routes:
+        for u2, v2, r2 in routes:
+            if u1 == v2 and v1 == u2 and r1 != r2:
+                reverse_lookup[r1] = r2
+
+    # Traverse the graph to build continuous journeys
+    for start, end, route in routes:
+        if route in all_used_routes:
+            continue
+
+        journey = [(start, end, route)]
+        all_used_routes.add(route)
+        current_node = end
+
+        # Keep expanding the journey by finding connected routes
+        while True:
+            found_next = False
+            for neighbor in graph.successors(current_node):  # Check outgoing edges
+                for next_route in graph[current_node][neighbor]["routes"]:
+                    if next_route not in all_used_routes:
+                        journey.append((current_node, neighbor, next_route))
+                        all_used_routes.add(next_route)
+                        current_node = neighbor
+                        found_next = True
+                        break
+                if found_next:
+                    break
+            
+            if not found_next:
+                break  # Stop if no more unused routes found
+
+        journeys.append(journey)
+
+    return journeys
+
 def main():
     filename = input("Enter the name of the route file to load (e.g., my_routes.txt): ").strip()
     try:
-        routes, route_descriptions, route_times = load_routes_from_file(filename)  # Now also getting descriptions
+        routes, route_descriptions, route_times = load_routes_from_file(filename)
         print("Loaded Routes:", routes)
     except FileNotFoundError:
         print(f"Error: File '{filename}' not found. Please check the filename and try again.")
         return
-    
-    graph = nx.Graph()
+
+    graph = nx.DiGraph()
     for u, v, route in routes:
         if graph.has_edge(u, v):
-            graph[u][v]['routes'].append(route)  # Append new route if edge already exists
+            graph[u][v]['routes'].append(route)
         else:
-            graph.add_edge(u, v, routes=[route])  # Initialize with a list
+            graph.add_edge(u, v, routes=[route])
 
-    journeys = find_eulerian_paths(graph)
+    journeys = build_journeys(graph, routes)
 
     for i, journey in enumerate(journeys, 1):
         print(f"\nJourney {i}\n")
@@ -93,8 +87,7 @@ def main():
 
         for u, v, route in journey:
             description = route_descriptions.get(route, "Unknown Route")
-            reverse_note = " (reverse direction)" if (v, u, route) in journey else ""
-            print(f"    {u} → {v} ({route}) | {description}{reverse_note}")
+            print(f"    {u} → {v} ({route}) | {description}")
             route_ids.append(route)
             total_time += route_times.get(route, 0)
 
