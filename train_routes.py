@@ -86,45 +86,41 @@ def build_journeys(graph, routes, route_times):
 
 def save_journeys_to_file(journeys, route_descriptions, route_times, journey_type):
     filename = f"{journey_type}_journeys"
+    
+    save_format = ""
+    while save_format not in ["txt", "json"]:
+        save_format = input("\nDo you want to save as TXT or JSON? (txt/json): ").strip().lower()
+        if save_format not in ["txt", "json"]:
+            print("\nError: Please enter 'txt' or 'json'.")
 
-    save_format = input("\nDo you want to save as TXT or JSON? (txt/json): ").strip().lower()
+    filename += f".{save_format}"
+    
     if save_format == "json":
-        filename += ".json"
-        data = []
-        for i, journey in enumerate(journeys, 1):
-            journey_data = {
-                "journey_number": i,
-                "total_time": sum(route_times.get(route, 0) for _, _, route in journey),
-                "routes_used": [route for _, _, route in journey],
-                "steps": [
-                    {
-                        "from": u,
-                        "to": v,
-                        "route": route,
-                        "description": route_descriptions.get(route, "")
-                    }
-                    for u, v, route in journey
-                ]
-            }
-            data.append(journey_data)
-
+        data = [{
+            "journey_number": i + 1,
+            "total_time": sum(route_times.get(route, 0) for _, _, route in journey),
+            "routes_used": [route for _, _, route in journey],
+            "steps": [{
+                "from": u,
+                "to": v,
+                "route": route,
+                "description": route_descriptions.get(route, "")
+            } for u, v, route in journey]
+        } for i, journey in enumerate(journeys)]
+        
         with open(filename, 'w', encoding="utf-8") as file:
             json.dump(data, file, indent=4)
     else:
-        filename += ".txt"
         with open(filename, 'w', encoding="utf-8") as file:
             for i, journey in enumerate(journeys, 1):
                 total_time = sum(route_times.get(route, 0) for _, _, route in journey)
                 file.write(f"Journey {i}\n\n")
                 for u, v, route in journey:
                     description = route_descriptions.get(route, "")
-                    if description:
-                        file.write(f"    {u} → {v} ({route}) | {description}\n")
-                    else:
-                        file.write(f"    {u} → {v} ({route})\n")
+                    file.write(f"    {u} → {v} ({route}) | {description}\n" if description else f"    {u} → {v} ({route})\n")
                 file.write(f"\n    Routes used: {', '.join(route for _, _, route in journey)}\n")
                 file.write(f"    Total time: {total_time} min\n\n")
-
+    
     print(f"\nJourneys saved to {filename}")
 
 def main():
@@ -133,6 +129,12 @@ def main():
         if filename.endswith(".json"):
             try:
                 routes, route_descriptions, route_times = load_routes_from_json(filename)
+            except FileNotFoundError:
+                print(f"\nError: File '{filename}' not found. Please check the filename and try again.")
+                continue
+        elif filename.endswith(".txt"):
+            try:
+                routes, route_descriptions, route_times = load_routes_from_txt(filename)
             except FileNotFoundError:
                 print(f"\nError: File '{filename}' not found. Please check the filename and try again.")
                 continue
@@ -170,14 +172,25 @@ def main():
             print(f"\n    Routes used: {', '.join(route_ids)}")
             print(f"    Total time: {total_time} min\n")
 
-        save_choice = input("Do you want to save the journeys? (yes/no): ").strip().lower()
-        if save_choice == "yes" or "y":
-            save_journeys_to_file(journeys, route_descriptions, route_times, journey_type)
+        while True:
+            save_choice = input("Do you want to save the journeys? (yes/no): ").strip().lower()
+            if save_choice in ["yes", "y"]:
+                save_journeys_to_file(journeys, route_descriptions, route_times, journey_type)
+                break
+            elif save_choice in ["no", "n"]:
+                break
+            else:
+                print("\nError: Please enter 'yes' or 'no'.\n")
 
-        another_set = input("\nDo you want to load another set of routes? (yes/no): ").strip().lower()
-        if another_set != "yes" or "y":
-            print("\nExiting program.")
-            break
+        while True:
+            another_set = input("\nDo you want to load another set of routes? (yes/no): ").strip().lower()
+            if another_set in ["no", "n"]:
+                print("\nkk bye!!!")
+                return
+            elif another_set in ["yes", "y"]:
+                break
+            else:
+                print("\nError: Please enter 'yes' or 'no'.")
 
 if __name__ == "__main__":
     main()
