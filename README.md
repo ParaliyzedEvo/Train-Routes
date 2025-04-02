@@ -6,10 +6,10 @@ Note: Also the code has around a 3-5% error rate, but it's not that significant.
 
 Download exe [here](https://github.com/ParaliyzedEvo/Train-Routes/releases/latest)
 
-## Format for connect routes
+## Format for Connect and Waterline routes
 <img width="69%" height="auto" alt="connect routes" src="https://i.imgur.com/UB9SHlo.png">
 
-## Format for express routes
+## Format for Express routes
 <img width="69%" height="auto" alt="express routes" src="https://i.imgur.com/F5mEqgT.png">
 
 ## Star History
