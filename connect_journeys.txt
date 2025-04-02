@@ -1,0 +1,11 @@
+Journey 1
+
+    Newry → Greenslade (R010)
+    Greenslade → Benton (R013)
+    Benton → Esterfield (R016)
+    Esterfield → Newry (R014)
+    Newry → Connolly (R011)
+
+    Routes used: R010, R013, R016, R014, R011
+    Total time: 53 min
+

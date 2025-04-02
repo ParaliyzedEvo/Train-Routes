@@ -88,14 +88,19 @@ def save_journeys_to_file(journeys, route_descriptions, route_times, journey_typ
     filename = f"{journey_type}_journeys"
     
     save_format = ""
-    while save_format not in ["txt", "json"]:
+    while save_format not in ["txt", "json", "t", "j"]:
         save_format = input("\nDo you want to save as TXT or JSON? (txt/json): ").strip().lower()
-        if save_format not in ["txt", "json"]:
+        if save_format not in ["txt", "json", "t", "j"]:
             print("\nError: Please enter 'txt' or 'json'.")
+
+    if save_format == "t":
+        save_format = "txt"
+    elif save_format == "j":
+        save_format = "json"
 
     filename += f".{save_format}"
     
-    if save_format == "json":
+    if save_format == "json" or "j":
         data = [{
             "journey_number": i + 1,
             "total_time": sum(route_times.get(route, 0) for _, _, route in journey),
@@ -110,7 +115,7 @@ def save_journeys_to_file(journeys, route_descriptions, route_times, journey_typ
         
         with open(filename, 'w', encoding="utf-8") as file:
             json.dump(data, file, indent=4)
-    else:
+    elif save_format == "txt" or "t":
         with open(filename, 'w', encoding="utf-8") as file:
             for i, journey in enumerate(journeys, 1):
                 total_time = sum(route_times.get(route, 0) for _, _, route in journey)
@@ -155,7 +160,7 @@ def main():
                 graph.add_edge(u, v, routes=[route])
 
         journeys = build_journeys(graph, routes, route_times)
-        journey_type = "express" if any(route_descriptions[route] for _, _, route in routes) else "connect"
+        journey_type = "express" if any(route_descriptions[route] for _, _, route in routes) else "connect-waterline"
 
         for i, journey in enumerate(journeys, 1):
             print(f"\nJourney {i}\n")
