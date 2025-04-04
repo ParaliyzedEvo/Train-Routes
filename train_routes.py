@@ -100,7 +100,7 @@ def save_journeys_to_file(journeys, route_descriptions, route_times, journey_typ
 
     filename += f".{save_format}"
     
-    if save_format == "json" or "j":
+    if save_format in ["json", "j"]:
         data = [{
             "journey_number": i + 1,
             "total_time": sum(route_times.get(route, 0) for _, _, route in journey),
@@ -115,7 +115,7 @@ def save_journeys_to_file(journeys, route_descriptions, route_times, journey_typ
         
         with open(filename, 'w', encoding="utf-8") as file:
             json.dump(data, file, indent=4)
-    elif save_format == "txt" or "t":
+    elif save_format in ["txt", "t"]:
         with open(filename, 'w', encoding="utf-8") as file:
             for i, journey in enumerate(journeys, 1):
                 total_time = sum(route_times.get(route, 0) for _, _, route in journey)
