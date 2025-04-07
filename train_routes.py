@@ -160,7 +160,7 @@ def main():
                 graph.add_edge(u, v, routes=[route])
 
         journeys = build_journeys(graph, routes, route_times)
-        journey_type = "express" if any(route_descriptions[route] for _, _, route in routes) else "connect-waterline"
+        journey_type = "express-airlink" if any(route_descriptions[route] for _, _, route in routes) else "connect-waterline"
 
         for i, journey in enumerate(journeys, 1):
             print(f"\nJourney {i}\n")
