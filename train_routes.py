@@ -7,13 +7,13 @@ def load_routes_from_txt(filename):
     route_descriptions = {}
     route_times = {}
 
-    express_pattern = r"(.+?)\s*<>\s*(.+?)\s*\((R\d+)\)\s*(\d+)\s*min.*\|\s*(.+)"
+    express_wl_al_pattern = r"(.+?)\s*<>\s*(.+?)\s*\((R\d+)\)\s*(\d+)\s*min.*\|\s*(.+)"
     connect_pattern = r"(.+?)\s*<>\s*(.+?)\s*\((R\d+)\)\s*(\d+)\s*min.*"
 
     with open(filename, 'r', encoding="utf-8") as file:
         for line in file:
             line = line.strip()
-            express_match = re.search(express_pattern, line)
+            express_match = re.search(express_wl_al_pattern, line)
             connect_match = re.search(connect_pattern, line)
 
             if express_match:
@@ -160,7 +160,7 @@ def main():
                 graph.add_edge(u, v, routes=[route])
 
         journeys = build_journeys(graph, routes, route_times)
-        journey_type = "express-airlink" if any(route_descriptions[route] for _, _, route in routes) else "connect-waterline"
+        journey_type = "express-wl-al" if any(route_descriptions[route] for _, _, route in routes) else "connect"
 
         for i, journey in enumerate(journeys, 1):
             print(f"\nJourney {i}\n")
