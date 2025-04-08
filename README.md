@@ -2,15 +2,21 @@ Played this game called [Stepford County Railway](https://www.roblox.com/games/6
 
 **THIS CODE NOW SUPPORTS EVERY OPERATOR!!!**
 
-Note: Also the code has around a 3-5% error rate, but it's not that significant. Like for example, sometimes it might give you 3 journeys instead of 2, but you can either leave it as that or figure out a way to make it a journey less.
+Note: Also the code has around a 3-7% error rate, but it's not that significant. Like for example, sometimes it might give you 3 journeys instead of 2, but you can either leave it as that or figure out a way to make it a journey less.
 
 Download exe [here](https://github.com/ParaliyzedEvo/Train-Routes/releases/latest)
 
-## Format for Connect and Waterline routes
+## Format for Connect routes
 <img width="69%" height="auto" alt="connect routes" src="https://i.imgur.com/UB9SHlo.png">
 
-## Format for Express and Airlink (for airlink put the (E) and (S) after the pipe) routes
+## Format for Express routes
 <img width="69%" height="auto" alt="express routes" src="https://i.imgur.com/F5mEqgT.png">
+
+## Format for Waterline routes
+<img width="69%" height="auto" alt="express routes" src="https://i.imgur.com/GL379AB.png">
+
+## Format for Airlink routes
+<img width="69%" height="auto" alt="express routes" src="https://i.imgur.com/xKqatIT.png">
 
 ## Star History
 
