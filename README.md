@@ -9,6 +9,9 @@ Download exe [here](https://github.com/ParaliyzedEvo/Train-Routes/releases/lates
 ## Format for Connect routes
 <img width="69%" height="auto" alt="connect routes" src="https://i.imgur.com/UB9SHlo.png">
 
+## Format for Metro routes
+<img width="69%" height="auto" alt="connect routes" src="https://i.imgur.com/0O9mB1M.png">
+
 ## Format for Express routes
 <img width="69%" height="auto" alt="express routes" src="https://i.imgur.com/F5mEqgT.png">
 
