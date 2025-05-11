@@ -6,6 +6,8 @@ Note: Also the code has around a 3-11% error rate, but it's not that significant
 
 Download exe [here](https://github.com/ParaliyzedEvo/Train-Routes/releases/latest)
 
+If you want the routes and journeys I have and use for the game, you can download it [here](https://github.com/ParaliyzedEvo/Train-Routes/releases/latest)
+
 ## Format for Connect routes
 <img width="69%" height="auto" alt="connect routes" src="https://i.imgur.com/UB9SHlo.png">
 
