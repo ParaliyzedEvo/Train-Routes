@@ -2,3 +2,5 @@ flag-of-niger.ico
 routes/
 build/
 dist/
+.venv
+k.txt
