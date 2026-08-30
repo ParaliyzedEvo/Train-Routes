@@ -1,6 +1,8 @@
-flag-of-niger.ico
+*.ico
 routes/
 build/
 dist/
 .venv
-k.txt
+*.txt
+*.json
+!requirements.txt

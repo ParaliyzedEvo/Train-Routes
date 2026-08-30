@@ -2,36 +2,43 @@ import re
 import json
 import networkx as nx
 
+def parse_route_line(line):
+    match = re.match(
+        r"^(.+?)\s*<>\s*(.+?)\s*\((R\d+)\)\s*(\d+)\s*min(?:,\s*\d+\s*stops)?(?:\s*\|\s*(.+))?$",
+        line
+    )
+    if not match:
+        return None
+    start, end, route, minutes, description = match.groups()
+    return start.strip(), end.strip(), route.strip(), int(minutes), (description or "").strip()
+
 def load_routes_from_txt(filename):
-    routes = []
+    # Auto-detects two formats
+    classes = {}
     route_descriptions = {}
     route_times = {}
-
-    express_wl_al_metro_pattern = r"(.+?)\s*<>\s*(.+?)\s*\((R\d+)\)\s*(\d+)\s*min.*\|\s*(.+)"
-    connect_wl_pattern = r"(.+?)\s*<>\s*(.+?)\s*\((R\d+)\)\s*(\d+)\s*min.*"
+    current_class = "Journeys"
 
     with open(filename, 'r', encoding="utf-8") as file:
-        for line in file:
-            line = line.strip()
-            express_match = re.search(express_wl_al_metro_pattern, line)
-            connect_match = re.search(connect_wl_pattern, line)
-
-            if express_match:
-                start, end, route, minutes, description = express_match.groups()
-                description = description.strip()
-            elif connect_match:
-                start, end, route, minutes = connect_match.groups()
-                description = ""
-            else:
+        for raw_line in file:
+            line = raw_line.strip()
+            if not line:
                 continue
 
-            routes.append((start.strip(), end.strip(), route.strip()))
-            routes.append((end.strip(), start.strip(), route.strip()))
+            parsed = parse_route_line(line)
+            if parsed:
+                start, end, route, minutes, description = parsed
+                route_descriptions[route] = description
+                route_times[route] = minutes
+                classes.setdefault(current_class, [])
+                classes[current_class].append((start, end, route))
+                classes[current_class].append((end, start, route))
+                continue
 
-            route_descriptions[route.strip()] = description
-            route_times[route.strip()] = int(minutes)
+            if line.endswith(":"):
+                current_class = line[:-1].strip()
 
-    return routes, route_descriptions, route_times
+    return classes, route_descriptions, route_times
 
 def load_routes_from_json(filename):
     with open(filename, 'r', encoding="utf-8") as file:
@@ -51,42 +58,111 @@ def load_routes_from_json(filename):
         route_descriptions[route_id] = description
         route_times[route_id] = minutes
 
-    return routes, route_descriptions, route_times
+    return {"Journeys": routes}, route_descriptions, route_times
 
-def build_journeys(graph, routes, route_times):
-    all_used_routes = set()
-    journeys = []
+def classify_route_type(description):
+    if not description:
+        return None  # ambiguous - blank description could be waterline or connect
+    if "Shuttle" in description:
+        return "waterline"
+    if re.search(r"semi-fast", description, re.IGNORECASE):
+        return "connect"
+    if re.search(r"\(E\)|\(S\)", description) or re.search(r"Via T\(\d+-\d+\)", description):
+        return "airlink"
+    if "Clockwise" in description:
+        return "metro"
+    return "express"
 
-    for start, end, route in routes:
-        if route in all_used_routes:
+def _decompose_component(subgraph):
+    working = subgraph.copy()
+
+    odd_nodes = [n for n, d in working.degree() if d % 2 == 1]
+    for i in range(0, len(odd_nodes) - 1, 2):
+        u, v = odd_nodes[i], odd_nodes[i + 1]
+        working.add_edge(u, v, route="__virtual__")
+
+    has_virtual = len(odd_nodes) > 0
+    start_node = odd_nodes[0] if has_virtual else next(iter(working.nodes))
+    circuit = list(nx.eulerian_circuit(working, source=start_node, keys=True))
+
+    if has_virtual:
+        first_virtual_idx = next(
+            i for i, (u, v, k) in enumerate(circuit)
+            if working.get_edge_data(u, v, k)["route"] == "__virtual__"
+        )
+        circuit = circuit[first_virtual_idx + 1:] + circuit[:first_virtual_idx + 1]
+
+    trails = []
+    current_trail = []
+    for u, v, key in circuit:
+        route = working.get_edge_data(u, v, key)["route"]
+        if route == "__virtual__":
+            if current_trail:
+                trails.append(current_trail)
+                current_trail = []
             continue
+        current_trail.append((u, v, route))
+    if current_trail:
+        trails.append(current_trail)
 
-        journey = [(start, end, route)]
-        all_used_routes.add(route)
-        current_node = end
+    return trails
 
-        while True:
-            found_next = False
-            for neighbor in graph.successors(current_node):
-                for next_route in graph[current_node][neighbor]["routes"]:
-                    if next_route not in all_used_routes:
-                        journey.append((current_node, neighbor, next_route))
-                        all_used_routes.add(next_route)
-                        current_node = neighbor
-                        found_next = True
-                        break
-                if found_next:
-                    break
-            if not found_next:
-                break
 
-        journeys.append(journey)
+def build_journeys(routes):
+    undirected = nx.MultiGraph()
+    seen_routes = set()
+    for u, v, route in routes:
+        if route in seen_routes:
+            continue
+        seen_routes.add(route)
+        undirected.add_edge(u, v, key=route, route=route)
+
+    journeys = []
+    for component_nodes in nx.connected_components(undirected):
+        subgraph = undirected.subgraph(component_nodes)
+        if subgraph.number_of_edges() == 0:
+            continue
+        journeys.extend(_decompose_component(subgraph))
 
     return journeys
 
-def save_journeys_to_file(journeys, route_descriptions, route_times, journey_type):
+def _json_str(value):
+    return json.dumps(value, ensure_ascii=False)
+
+def _format_journey_json(journey, indent):
+    pad = " " * indent
+    pad2 = " " * (indent + 4)
+    pad3 = " " * (indent + 8)
+    segments_lines = ",\n".join(f"{pad3}{_json_str(s)}" for s in journey["segments"])
+    routes_inline = ", ".join(_json_str(r) for r in journey["routes_used"])
+    return (
+        f"{pad}{{\n"
+        f"{pad2}\"segments\": [\n{segments_lines}\n{pad2}],\n"
+        f"{pad2}\"routes_used\": [{routes_inline}],\n"
+        f"{pad2}\"total_time_min\": {journey['total_time_min']}\n"
+        f"{pad}}}"
+    )
+
+def _format_all_journeys_json(data):
+    lines = ["{"]
+    class_names = list(data.keys())
+    for ci, class_name in enumerate(class_names):
+        journeys = data[class_name]
+        class_comma = "," if ci < len(class_names) - 1 else ""
+        if not journeys:
+            lines.append(f"    {_json_str(class_name)}: []{class_comma}")
+            continue
+        lines.append(f"    {_json_str(class_name)}: [")
+        for ji, journey in enumerate(journeys):
+            journey_comma = "," if ji < len(journeys) - 1 else ""
+            lines.append(_format_journey_json(journey, 8) + journey_comma)
+        lines.append(f"    ]{class_comma}")
+    lines.append("}")
+    return "\n".join(lines)
+
+def save_journeys_to_file(all_class_journeys, route_descriptions, route_times, journey_type):
     filename = f"{journey_type}_journeys"
-    
+
     save_format = ""
     while save_format not in ["txt", "json", "t", "j"]:
         save_format = input("\nDo you want to save as TXT or JSON? (txt/json): ").strip().lower()
@@ -99,39 +175,44 @@ def save_journeys_to_file(journeys, route_descriptions, route_times, journey_typ
         save_format = "json"
 
     filename += f".{save_format}"
-    
-    if save_format in ["json", "j"]:
-        data = []
-        for journey in journeys:
-            segments = []
-            routes_used = []
-            total_time = 0
 
-            for u, v, route in journey:
-                description = route_descriptions.get(route, "")
-                segments.append(f"{u} → {v} ({route})" + (f" | {description}" if description else ""))
-                routes_used.append(route)
-                total_time += route_times.get(route, 0)
+    if save_format == "json":
+        data = {}
+        for class_name, journeys in all_class_journeys.items():
+            class_data = []
+            for journey in journeys:
+                segments = []
+                routes_used = []
+                total_time = 0
 
-            data.append({
-                "segments": segments,
-                "routes_used": routes_used,
-                "total_time_min": total_time
-            })
-
-        with open(filename, 'w', encoding="utf-8") as file:
-            json.dump(data, file, indent=4)
-    elif save_format in ["txt", "t"]:
-        with open(filename, 'w', encoding="utf-8") as file:
-            for i, journey in enumerate(journeys, 1):
-                total_time = sum(route_times.get(route, 0) for _, _, route in journey)
-                file.write(f"Journey {i}\n\n")
                 for u, v, route in journey:
                     description = route_descriptions.get(route, "")
-                    file.write(f"    {u} → {v} ({route}) | {description}\n" if description else f"    {u} → {v} ({route})\n")
-                file.write(f"\n    Routes used: {', '.join(route for _, _, route in journey)}\n")
-                file.write(f"    Total time: {total_time} min\n\n")
-    
+                    segments.append(f"{u} → {v} ({route})" + (f" | {description}" if description else ""))
+                    routes_used.append(route)
+                    total_time += route_times.get(route, 0)
+
+                class_data.append({
+                    "segments": segments,
+                    "routes_used": routes_used,
+                    "total_time_min": total_time
+                })
+            data[class_name] = class_data
+
+        with open(filename, 'w', encoding="utf-8") as file:
+            file.write(_format_all_journeys_json(data))
+    elif save_format == "txt":
+        with open(filename, 'w', encoding="utf-8") as file:
+            for class_name, journeys in all_class_journeys.items():
+                file.write(f"{class_name}\n\n")
+                for i, journey in enumerate(journeys, 1):
+                    total_time = sum(route_times.get(route, 0) for _, _, route in journey)
+                    file.write(f"Journey {i}\n\n")
+                    for u, v, route in journey:
+                        description = route_descriptions.get(route, "")
+                        file.write(f"    {u} → {v} ({route}) | {description}\n" if description else f"    {u} → {v} ({route})\n")
+                    file.write(f"\n    Routes used: {', '.join(route for _, _, route in journey)}\n")
+                    file.write(f"    Total time: {total_time} min\n\n")
+
     print(f"\nJourneys saved to {filename}")
 
 def main():
@@ -139,54 +220,52 @@ def main():
         filename = input("\nEnter the name of the route file to load (TXT or JSON): ").strip()
         if filename.endswith(".json"):
             try:
-                routes, route_descriptions, route_times = load_routes_from_json(filename)
-            except FileNotFoundError:
-                print(f"\nError: File '{filename}' not found. Please check the filename and try again.")
-                continue
-        elif filename.endswith(".txt"):
-            try:
-                routes, route_descriptions, route_times = load_routes_from_txt(filename)
+                classes, route_descriptions, route_times = load_routes_from_json(filename)
             except FileNotFoundError:
                 print(f"\nError: File '{filename}' not found. Please check the filename and try again.")
                 continue
         else:
             try:
-                routes, route_descriptions, route_times = load_routes_from_txt(filename)
+                classes, route_descriptions, route_times = load_routes_from_txt(filename)
             except FileNotFoundError:
                 print(f"\nError: File '{filename}' not found. Please check the filename and try again.")
                 continue
 
-        # print("Loaded Routes:", routes)
+        all_class_journeys = {}
+        for class_name, routes in classes.items():
+            all_class_journeys[class_name] = build_journeys(routes)
 
-        graph = nx.DiGraph()
-        for u, v, route in routes:
-            if graph.has_edge(u, v):
-                graph[u][v]['routes'].append(route)
-            else:
-                graph.add_edge(u, v, routes=[route])
+        classified = [classify_route_type(desc) for desc in route_descriptions.values()]
+        types_present = {t for t in classified if t}
+        has_ambiguous = None in classified
+        # blank descriptions can't be told apart from waterline/connect
+        if has_ambiguous and not ({"waterline", "connect"} & types_present):
+            types_present.add("connect-wl")
 
-        journeys = build_journeys(graph, routes, route_times)
-        journey_type = "connect-express-wl-al-metro" if any(route_descriptions[route] for _, _, route in routes) else "connect-wl"
+        type_priority = ["connect-wl", "waterline", "connect", "airlink", "metro", "express"]
+        journey_type = "-".join(t for t in type_priority if t in types_present)
 
-        for i, journey in enumerate(journeys, 1):
-            print(f"\nJourney {i}\n")
-            total_time = sum(route_times.get(route, 0) for _, _, route in journey)
-            route_ids = [route for _, _, route in journey]
+        for class_name, journeys in all_class_journeys.items():
+            print(f"\n{class_name}\n")
+            for i, journey in enumerate(journeys, 1):
+                print(f"\nJourney {i}\n")
+                total_time = sum(route_times.get(route, 0) for _, _, route in journey)
+                route_ids = [route for _, _, route in journey]
 
-            for u, v, route in journey:
-                description = route_descriptions.get(route, "")
-                if description:
-                    print(f"    {u} → {v} ({route}) | {description}")
-                else:
-                    print(f"    {u} → {v} ({route})")
+                for u, v, route in journey:
+                    description = route_descriptions.get(route, "")
+                    if description:
+                        print(f"    {u} → {v} ({route}) | {description}")
+                    else:
+                        print(f"    {u} → {v} ({route})")
 
-            print(f"\n    Routes used: {', '.join(route_ids)}")
-            print(f"    Total time: {total_time} min\n")
+                print(f"\n    Routes used: {', '.join(route_ids)}")
+                print(f"    Total time: {total_time} min\n")
 
         while True:
             save_choice = input("Do you want to save the journeys? (yes/no): ").strip().lower()
             if save_choice in ["yes", "y"]:
-                save_journeys_to_file(journeys, route_descriptions, route_times, journey_type)
+                save_journeys_to_file(all_class_journeys, route_descriptions, route_times, journey_type)
                 break
             elif save_choice in ["no", "n"]:
                 break

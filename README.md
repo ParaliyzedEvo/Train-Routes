@@ -1,3 +1,7 @@
+[![CodeFactor](https://www.codefactor.io/repository/github/paraliyzedevo/Train-Routes/badge)](https://www.codefactor.io/repository/github/paraliyzedevo/Train-Routes)
+[![Website](https://img.shields.io/badge/-Website-6a0dad?style=flat&logo=osu&logoColor=FFFFFF&labelColor=ff1493&color=6a0dad)](https://paraliyzed.net/)
+[![Donate](https://img.shields.io/badge/-Donate-FFDE21?style=flat&logo=paypal&logoColor=%23FFFFFF&labelColor=%2300c244&color=%2300c244)](https://paypal.me/Paraliyzedevo)
+
 Played this game called [Stepford County Railway](https://www.roblox.com/games/696347899/V2-1-Stepford-County-Railway) (SCR for short) and I js wanted a way to make journeys for the routes I have so I don't have to go back to the menu every time I wanna switch routes. I asked ChatGPT to help me with making those journeys. The rules (well the gist of it since I had to add on more for the ai to understand, but its wtv) I gave was to minimize the amount of journeys for the routes I gave and for the routes to only be used once. But in the end they sucked once the routes I gave them became too big. So yea, I literally made this code in spite of ChatGPT. 
 
 **THIS CODE NOW SUPPORTS EVERY OPERATOR (METRO INCLUDED)!!!**
