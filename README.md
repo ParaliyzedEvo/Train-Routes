@@ -29,10 +29,9 @@ If you want the routes and journeys I have and use for the game, you can downloa
 
 ## Star History
 
-<a href="https://www.star-history.com/#ParaliyzedEvo/Train-Routes&Date">
+<a href="https://www.star-history.com/?repos=ParaliyzedEvo%2FTrain-Routes&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=ParaliyzedEvo/Train-Routes&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=ParaliyzedEvo/Train-Routes&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=ParaliyzedEvo/Train-Routes&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=ParaliyzedEvo/Train-Routes&type=date&theme=dark&legend=top-left&sealed_token=RmB2V_BUt6S2kvIzlRIj3MZ9kOC0sSravfGRygiWsQzFn5YYx3xSF0e-o7cn5N5RICy9Xsn4Qx2FhKANX3UU02eYGVLGRU2A4voF60t4YKUz3-28RHIWng" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=ParaliyzedEvo/Train-Routes&type=date&legend=top-left&sealed_token=RmB2V_BUt6S2kvIzlRIj3MZ9kOC0sSravfGRygiWsQzFn5YYx3xSF0e-o7cn5N5RICy9Xsn4Qx2FhKANX3UU02eYGVLGRU2A4voF60t4YKUz3-28RHIWng" />
  </picture>
 </a>
