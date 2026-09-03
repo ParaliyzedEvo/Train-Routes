@@ -1,5 +1,6 @@
 import re
 import json
+import random
 import networkx as nx
 
 def parse_route_line(line):
@@ -73,10 +74,18 @@ def classify_route_type(description):
         return "metro"
     return "express"
 
-def _decompose_component(subgraph):
-    working = subgraph.copy()
+_BALANCE_TRIALS = 2000
+
+def _decompose_component_once(subgraph, rng):
+    # shuffle edge insertion order (varies traversal order)
+    working = nx.MultiGraph()
+    edge_list = list(subgraph.edges(keys=True, data=True))
+    rng.shuffle(edge_list)
+    for u, v, k, d in edge_list:
+        working.add_edge(u, v, key=k, **d)
 
     odd_nodes = [n for n, d in working.degree() if d % 2 == 1]
+    rng.shuffle(odd_nodes)
     for i in range(0, len(odd_nodes) - 1, 2):
         u, v = odd_nodes[i], odd_nodes[i + 1]
         working.add_edge(u, v, route="__virtual__")
@@ -108,7 +117,25 @@ def _decompose_component(subgraph):
     return trails
 
 
-def build_journeys(routes):
+def _decompose_component(subgraph, route_times, trial_count):
+    odd_count = sum(1 for _, d in subgraph.degree() if d % 2 == 1)
+    actual_trials = 1 if odd_count <= 2 else trial_count
+
+    rng = random.Random(0)
+    best_trails = None
+    best_spread = None
+    for _ in range(actual_trials):
+        trails = _decompose_component_once(subgraph, rng)
+        totals = [sum(route_times.get(r, 0) for _, _, r in t) for t in trails]
+        spread = max(totals) - min(totals)
+        if best_spread is None or spread < best_spread:
+            best_spread = spread
+            best_trails = trails
+
+    return best_trails
+
+
+def build_journeys(routes, route_times, trial_count=_BALANCE_TRIALS):
     undirected = nx.MultiGraph()
     seen_routes = set()
     for u, v, route in routes:
@@ -122,7 +149,7 @@ def build_journeys(routes):
         subgraph = undirected.subgraph(component_nodes)
         if subgraph.number_of_edges() == 0:
             continue
-        journeys.extend(_decompose_component(subgraph))
+        journeys.extend(_decompose_component(subgraph, route_times, trial_count))
 
     return journeys
 
@@ -216,6 +243,20 @@ def save_journeys_to_file(all_class_journeys, route_descriptions, route_times, j
     print(f"\nJourneys saved to {filename}")
 
 def main():
+    trial_input = input(
+        f"\nEnter number of balancing trials per route group (default {_BALANCE_TRIALS}, press Enter to use default): "
+    ).strip()
+    if trial_input:
+        try:
+            balance_trials = int(trial_input)
+            if balance_trials < 1:
+                raise ValueError
+        except ValueError:
+            print(f"\nInvalid number, using default of {_BALANCE_TRIALS}.")
+            balance_trials = _BALANCE_TRIALS
+    else:
+        balance_trials = _BALANCE_TRIALS
+
     while True:
         filename = input("\nEnter the name of the route file to load (TXT or JSON): ").strip()
         if filename.endswith(".json"):
@@ -233,7 +274,7 @@ def main():
 
         all_class_journeys = {}
         for class_name, routes in classes.items():
-            all_class_journeys[class_name] = build_journeys(routes)
+            all_class_journeys[class_name] = build_journeys(routes, route_times, balance_trials)
 
         classified = [classify_route_type(desc) for desc in route_descriptions.values()]
         types_present = {t for t in classified if t}
