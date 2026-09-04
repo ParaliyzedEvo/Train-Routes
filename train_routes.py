@@ -64,13 +64,13 @@ def load_routes_from_json(filename):
 def classify_route_type(description):
     if not description:
         return None  # ambiguous - blank description could be waterline or connect
-    if "Shuttle" in description:
+    if re.search(r"shuttle", description, re.IGNORECASE):
         return "waterline"
     if re.search(r"semi-fast", description, re.IGNORECASE):
         return "connect"
-    if re.search(r"\(E\)|\(S\)", description) or re.search(r"Via T\(\d+-\d+\)", description):
+    if re.search(r"\(E\)|\(S\)", description, re.IGNORECASE) or re.search(r"Via T\(\d+-\d+\)", description, re.IGNORECASE):
         return "airlink"
-    if "Clockwise" in description:
+    if re.search(r"clockwise", description, re.IGNORECASE):
         return "metro"
     return "express"
 
